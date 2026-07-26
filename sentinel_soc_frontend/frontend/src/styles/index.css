@@ -1,0 +1,79 @@
+/*
+ * index.css
+ * =========
+ * Design tokens for the SOC dashboard. Import this once at the app root
+ * (before component styles). Fonts: IBM Plex Mono carries data/telemetry
+ * (entity IDs, scores, timestamps); Inter carries UI chrome and prose.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-void: #090d12;
+  --bg-panel: #10151c;
+  --bg-panel-raised: #161d27;
+  --border-hairline: #1f2a37;
+
+  --text-ink: #e6edf3;
+  --text-ink-dim: #8996a6;
+  --text-ink-faint: #56626f;
+
+  --accent-signal: #2dd4bf;
+  --accent-signal-dim: #164e46;
+
+  --sev-low: #38bdf8;
+  --sev-medium: #fbbf24;
+  --sev-high: #fb923c;
+  --sev-critical: #f43f5e;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--bg-void);
+  color: var(--text-ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* subtle radar-grid texture for panel surfaces -- used sparingly */
+.bg-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* thin scrollbars that match the panel surface, not the OS default */
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background-color: var(--border-hairline);
+  border-radius: 999px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-signal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
