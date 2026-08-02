@@ -300,6 +300,11 @@ class AnomalyDetectionPipeline:
             extra={"num_commands": float(len(event["command_sequence"]))},
         )
         baseline_result = self.behavioral_profiler.observe(entity_id, fv)
+        print(
+            baseline_result.is_anomaly,
+            baseline_result.combined_score,
+            bilstm["normal_prob"] if "bilstm" in locals() else "NA",
+        )
 
         # Record history *after* scoring (so the baseline was judged
         # against the past, not including this event), then update the
@@ -335,6 +340,7 @@ class AnomalyDetectionPipeline:
         features_df = AttackFeatureBuilder().build([context])
         probs = self.xgb_classifier.predict_proba(features_df).iloc[0]
         predicted_label = probs.idxmax()
+        print("Predicted:", predicted_label)
         predicted_label_id = LABEL_ORDER.index(predicted_label)
         attack_probability = 1.0 - float(probs["normal"])
 

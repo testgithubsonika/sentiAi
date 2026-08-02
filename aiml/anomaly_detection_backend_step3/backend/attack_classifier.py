@@ -309,13 +309,41 @@ class XGBoostAttackClassifier:
             raise RuntimeError("XGBoostAttackClassifier must be trained (or loaded) before predicting.")
 
     def save(self, path: str) -> None:
-        joblib.dump({"model": self.model, "feature_columns": self.feature_columns}, path)
+        import os
+        import joblib
+
+        booster_path = path.replace(".joblib", ".json")
+
+        # Save booster in native XGBoost format
+        self.model.save_model(booster_path)
+
+        # Save metadata separately
+        joblib.dump(
+            {
+                "feature_columns": self.feature_columns,
+                "booster_path": os.path.basename(booster_path),
+            },
+            path,
+        )
 
     @classmethod
-    def load(cls, path: str) -> "XGBoostAttackClassifier":
+    def load(cls, path: str):
+        import os
+        import joblib
+        import xgboost as xgb
+
         payload = joblib.load(path)
-        obj = cls.__new__(cls)
-        obj.model = payload["model"]
+
+        obj = cls()
+
+        booster_path = os.path.join(
+            os.path.dirname(path),
+            payload["booster_path"],
+        )
+
+        obj.model.load_model(booster_path)
+
         obj.feature_columns = payload["feature_columns"]
         obj.fitted = True
+
         return obj

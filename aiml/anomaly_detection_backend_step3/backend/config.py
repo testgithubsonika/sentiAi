@@ -6,11 +6,12 @@ dependency) -- just `os.environ.get(...)` with sane hackathon defaults,
 so the whole backend runs out of the box with zero configuration and
 can be tuned via env vars for a real deployment.
 """
-
 from __future__ import annotations
 
+from dotenv import load_dotenv
 import os
 
+load_dotenv()
 
 def _bool(name: str, default: bool) -> bool:
     val = os.environ.get(name)
@@ -22,9 +23,9 @@ def _bool(name: str, default: bool) -> bool:
 class Settings:
     # -- Database ---------------------------------------------------------
     DATABASE_URL: str = os.environ.get(
-        "DATABASE_URL",
-        "postgresql+psycopg2://postgres:Ms%408120150260@localhost:5432/anomaly_db",
+        "DATABASE_URL"
     )
+    print(os.getenv("DATABASE_URL"))
     DB_POOL_SIZE: int = int(os.environ.get("DB_POOL_SIZE", "10"))
     DB_MAX_OVERFLOW: int = int(os.environ.get("DB_MAX_OVERFLOW", "20"))
 
@@ -49,6 +50,9 @@ class Settings:
     STREAM_MAX_DELAY_SECONDS: float = float(os.environ.get("STREAM_MAX_DELAY_SECONDS", "1.5"))
     STREAM_BATCH_HOURS: int = int(os.environ.get("STREAM_BATCH_HOURS", "6"))
     STREAM_EVENTS_PER_BATCH: int = int(os.environ.get("STREAM_EVENTS_PER_BATCH", "25"))
+    STREAM_EVENTS_PER_ENTITY_RANGE: tuple = tuple(
+        int(v) for v in os.environ.get("STREAM_EVENTS_PER_ENTITY_RANGE", "1,6").split(",")
+    )
 
     SEVERITY_THRESHOLDS: tuple = (0.35, 0.6, 0.85)
 

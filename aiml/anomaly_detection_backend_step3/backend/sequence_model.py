@@ -250,10 +250,34 @@ class SequenceWindowBuilder:
                 # primary command per event = first command in that event's
                 # sequence (empty sequences -> PAD), a deliberate simplification
                 # that keeps one token per timestep aligned with resource_ids.
-                cmd_ids = [
-                    self.command_vocab.encode(cmds[0]) if cmds else self.command_vocab.encode(None)
-                    for cmds in window["command_sequence"]
-                ]
+                cmd_ids = []
+
+                for cmds in window["command_sequence"]:
+
+                    # Handle missing values
+                    if cmds is None:
+                        cmds = []
+
+                    elif isinstance(cmds, float) and pd.isna(cmds):
+                        cmds = []
+
+                    # Convert numpy array to list
+                    elif isinstance(cmds, np.ndarray):
+                        cmds = cmds.tolist()
+
+                    # Convert tuple/set/string or other iterable to list
+                    elif not isinstance(cmds, list):
+                        try:
+                            cmds = list(cmds)
+                        except TypeError:
+                            cmds = []
+
+                    # Encode first command if available
+                    cmd_ids.append(
+                        self.command_vocab.encode(cmds[0])
+                        if len(cmds) > 0
+                        else self.command_vocab.encode(None)
+                    )
                 numeric = [self._numeric_row(r, duration_mean, duration_std) for _, r in window.iterrows()]
 
                 pad_amt = W - true_len

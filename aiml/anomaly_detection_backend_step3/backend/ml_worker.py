@@ -80,16 +80,22 @@ def get_pipeline() -> Optional[AnomalyDetectionPipeline]:
 # ---------------------------------------------------------------------------
 def _train_stack() -> AnomalyDetectionPipeline:
     logger.info("Loading pretrained detection stack...")
+    print("settings.MODEL_DIR =", settings.MODEL_DIR)
 
     training_pipeline = AttackClassificationPipeline.load_pretrained(
         model_dir=settings.MODEL_DIR,
     )
     logger.info("Pretrained models loaded successfully.")
 
+    profiles = training_pipeline.entity_profiles.reset_index(drop=True)
+    num_users = int((profiles["entity_type"] == "user").sum())
+    num_services = int((profiles["entity_type"] == "service_account").sum())
+    num_devices = int((profiles["entity_type"] == "edge_device").sum())
+
     gen = SyntheticDataGenerator(
-        num_users=settings.TRAIN_NUM_USERS,
-        num_service_accounts=settings.TRAIN_NUM_SERVICE_ACCOUNTS,
-        num_devices=settings.TRAIN_NUM_DEVICES,
+        num_users=num_users,
+        num_service_accounts=num_services,
+        num_devices=num_devices,
         seed=settings.TRAIN_SEED,
     )
     state.generator = gen
@@ -218,50 +224,71 @@ def _persist_event_and_alert(event: dict, alert: Optional[Alert]) -> Optional[di
 # Streaming loop
 # ---------------------------------------------------------------------------
 async def _stream_loop() -> None:
-    """Repeatedly generates a short burst of fresh synthetic events from
-    the *same* trained population (natural attack rate included), feeds
-    each one through `AnomalyDetectionPipeline.process_event()`, persists
-    it, and broadcasts it -- paced with a randomized delay so the
-    dashboard sees a believable live trickle rather than a data dump."""
-    assert state.pipeline is not None and state.generator is not None
-    cursor = datetime.utcnow()
+    try:
+        assert state.pipeline is not None
+        assert state.generator is not None
 
-    while state.is_streaming:
-        window_start = cursor
-        cursor = window_start + timedelta(hours=settings.STREAM_BATCH_HOURS)
-        days = max(1, settings.STREAM_BATCH_HOURS // 24 + 1)
+        cursor = datetime.utcnow()
 
-        batch_df = await asyncio.to_thread(
-            state.generator.generate, window_start, days, ATTACK_RATE_RANGE,
-        )
-        batch_df = batch_df.sort_values("timestamp").head(settings.STREAM_EVENTS_PER_BATCH)
+        while state.is_streaming:
 
-        for _, row in batch_df.iterrows():
-            if not state.is_streaming:
-                break
-            event = row.to_dict()
+            window_start = cursor
+            cursor = window_start + timedelta(hours=settings.STREAM_BATCH_HOURS)
 
-            alert = await asyncio.to_thread(state.pipeline.process_event, event)
-            payload = await asyncio.to_thread(_persist_event_and_alert, event, alert)
+            days = max(1, settings.STREAM_BATCH_HOURS // 24 + 1)
 
-            state.events_processed += 1
-            ts = event["timestamp"]
-            ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+            batch_df = await asyncio.to_thread(
+                state.generator.generate,
+                start_date=window_start,
+                days=days,
+                events_per_day_range=settings.STREAM_EVENTS_PER_ENTITY_RANGE,
+                attack_rate_range=ATTACK_RATE_RANGE,
+            )
 
-            if payload is not None:
-                state.alerts_raised += 1
-                logger.info("ALERT %s -> %s (risk=%.2f)", payload["entity_id"], payload["alert_type"], payload["risk_score"])
-                await manager.broadcast(payload)
-            else:
-                await manager.broadcast({
-                    "type": "event",
-                    "entity_id": event["entity_id"],
-                    "entity_type": event.get("entity_type"),
-                    "resource_accessed": event.get("resource_accessed", ""),
-                    "timestamp": ts_str,
-                })
+            batch_df = (
+                batch_df
+                .sample(
+                    n=min(settings.STREAM_EVENTS_PER_BATCH, len(batch_df)),
+                    random_state=None,
+                )
+                .sort_values("timestamp")
+            )
 
-            await asyncio.sleep(random.uniform(settings.STREAM_MIN_DELAY_SECONDS, settings.STREAM_MAX_DELAY_SECONDS))
+            print(f"Generated {len(batch_df)} events")
+            print(batch_df["label"].value_counts())
+
+            for _, row in batch_df.iterrows():
+
+                print("Processing", row["entity_id"])
+
+                event = row.to_dict()
+
+                alert = await asyncio.to_thread(
+                    state.pipeline.process_event,
+                    event,
+                )
+
+                payload = await asyncio.to_thread(
+                    _persist_event_and_alert,
+                    event,
+                    alert,
+                )
+
+                state.events_processed += 1
+
+                if payload is not None:
+                    state.alerts_raised += 1
+                    await manager.broadcast(payload)
+
+                await asyncio.sleep(1)
+
+    except Exception as e:
+        import traceback
+
+        print("=" * 80)
+        print("STREAM LOOP CRASHED")
+        traceback.print_exc()
+        print("=" * 80)
 
 
 # ---------------------------------------------------------------------------

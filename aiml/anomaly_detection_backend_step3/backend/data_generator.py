@@ -403,7 +403,7 @@ class AttackInjector:
                 ))
         return rows
 
-    # -- 4. Lateral Movement -------------------------------------------------
+    #   -- 4. Lateral Movement -------------------------------------------------
     def lateral_movement(self, n_incidents: int, start_date: datetime, days: int) -> List[dict]:
         rows = []
         for _ in range(n_incidents):

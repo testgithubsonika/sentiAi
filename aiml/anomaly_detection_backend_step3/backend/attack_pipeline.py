@@ -247,7 +247,16 @@ class AttackClassificationPipeline:
         )
         self.xgb_classifier.save(os.path.join(model_dir, XGB_FILENAME))
         self.behavioral_profiler.save(os.path.join(model_dir, PROFILER_FILENAME))
-        self.entity_profiles.to_csv(os.path.join(model_dir, PROFILES_FILENAME), index=False)
+        profiles_path = os.path.join(model_dir, PROFILES_FILENAME)
+
+        entity_profiles_df = self.entity_profiles.copy()
+
+        entity_profiles_df["typical_resources"] = (
+            entity_profiles_df["typical_resources"]
+            .apply(lambda lst: [str(x) for x in lst])
+        )
+
+        entity_profiles_df.to_csv(profiles_path, index=False)
 
         with open(os.path.join(model_dir, METADATA_FILENAME), "w") as f:
             json.dump({"window_size": self.window_size, "random_state": self.random_state}, f)
@@ -268,8 +277,17 @@ class AttackClassificationPipeline:
         `entity_profiles.csv` isn't available or you want to score
         against a different/updated entity roster than what was trained
         on (e.g. new entities onboarded since training)."""
-        bilstm_path = os.path.join(model_dir, BILSTM_FILENAME)
+        print("=" * 60)
+        print("Current working directory:", os.getcwd())
+        print("Model directory:", model_dir)
+
         xgb_path = os.path.join(model_dir, XGB_FILENAME)
+        print("Loading XGBoost model from:", os.path.abspath(xgb_path))
+        print("Exists:", os.path.exists(xgb_path))
+        print("Size:", os.path.getsize(xgb_path) if os.path.exists(xgb_path) else "NOT FOUND")
+        print("=" * 60)
+
+        bilstm_path = os.path.join(model_dir, BILSTM_FILENAME)
         profiler_path = os.path.join(model_dir, PROFILER_FILENAME)
         profiles_path = os.path.join(model_dir, PROFILES_FILENAME)
         metadata_path = os.path.join(model_dir, METADATA_FILENAME)
